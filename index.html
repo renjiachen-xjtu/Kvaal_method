@@ -58,7 +58,27 @@
             padding-left: 10px;
         }
 
-        .subtitle {
+        
+
+        h3 {
+            font-size: 16px;
+            color: var(--primary-color);
+            margin: 28px 0 12px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #e6e6e6;
+        }
+
+        /* 表格更像“报告表” */
+        table.param-table tbody tr:nth-child(even) {
+            background: #fafafa;
+        }
+        table.param-table td strong {
+            color: var(--accent-color);
+        }
+        @media print {
+            h3 { color: #000 !important; border-bottom: 1px solid #999; }
+        }
+.subtitle {
             color: #666;
             font-size: 14px;
         }
@@ -261,6 +281,36 @@
             font-size: 16px;
         }
 
+
+
+        .report-meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px 20px;
+            padding: 14px 16px;
+            border: 1px solid #e6e6e6;
+            background: #fcfcfc;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            font-size: 13px;
+            color: #333;
+        }
+        .report-meta .meta-item {
+            display: flex;
+            gap: 8px;
+            align-items: baseline;
+        }
+        .report-meta .meta-label {
+            color: #666;
+            min-width: 70px;
+            font-weight: 600;
+        }
+        @media print {
+            .report-meta {
+                border: 1px solid #bbb;
+                background: #fff !important;
+            }
+        }
 /* ================= 修改后的可视化样式 ================= */
         .viz-container {
             margin-top: 20px;
@@ -397,17 +447,71 @@
 
         /* 打印样式 */
         @media print {
-            .btn-group, .remove-btn { display: none; }
-            body { background: white; }
-            .container { box-shadow: none; border: none; padding: 0; }
+            /* 核心：强制打印背景颜色和图形，解决可视化横线消失问题 */
+            body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+                background-color: white;
+            }
+
+            /* 隐藏所有不需要打印的元素（导航、按钮、输入框等） */
+            .no-print, button, .input-group, .file-upload, h1, .tab-buttons, .step-nav { 
+                display: none !important; 
+            }
+
+            /* 专门为打印优化的容器样式 */
+            .container {
+                width: 100%;
+                max-width: 100%;
+                margin: 0;
+                padding: 0;
+                box-shadow: none;
+                border: none;
+            }
+
+            /* 报告头部美化 */
+            .report-header-print {
+                display: block !important;
+                text-align: center;
+                border-bottom: 2px solid #333;
+                margin-bottom: 20px;
+                padding-bottom: 10px;
+            }
+            .report-header-print h2 { margin: 0; font-size: 24px; color: #000; }
+            .report-header-print p { margin: 5px 0 0; color: #666; font-size: 14px; }
+
+            /* 结果卡片去卡片化，变成纯文本报告风格 */
+            .result-card {
+                border: 1px solid #ccc; /* 给个细边框 */
+                box-shadow: none;
+                margin-bottom: 20px;
+                page-break-inside: avoid; /* 防止表格跨页断开 */
+            }
+            
+            /* 调整可视化图表打印颜色 */
+            .viz-error-bar {
+                background-color: rgba(39, 174, 96, 0.4) !important; /* 强制打印绿色背景 */
+                border: 1px solid #27ae60; /* 加个边框防止背景色打印不出来时完全看不到 */
+            }
+            .viz-error-boundary {
+                border-left: 2px solid #27ae60 !important; /* 加粗边界线 */
+            }
         }
+
+        /* 默认隐藏打印头 */
+        .report-header-print { display: none; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <header>
-        <h1>Kvaal 法牙龄推断分析系统</h1>
+    <div class="report-header-print">
+        <h2>法医口腔牙龄推断分析报告</h2>
+        <p>Forensic Dental Age Estimation Report (Kvaal's Method)</p>
+        <p>生成日期: <script>document.write(new Date().toLocaleDateString())</script></p>
+    </div>
+
+    <h1 class="no-print">Kvaal法牙龄推断工具</h1>
         <div class="subtitle">Multi-Tooth Age Estimation based on Kvaal's Method</div>
     </header>
 
@@ -443,7 +547,7 @@
                 </table>
                 <p style="margin-top: 15px; font-size: 0.9em; color: #666;">
                     <strong>注意：</strong> 所有测量值单位应保持一致（如均为 mm 或均为 pixel）。<br>
-                    <strong>算法：</strong> 采用逆方差加权法 (Inverse Variance Weighting) 汇总多牙位结果以提升准确率。
+                    <strong>算法：</strong> 采用精度加权平均（权重=1/MAE²）汇总多牙位结果，以降低单一牙位波动。
                 </p>
             </div>
         </div>
@@ -490,8 +594,20 @@
         <div class="result-summary">
             <div>加权预测年龄 (Weighted Predicted Age)</div>
             <div class="final-age" id="finalAgeDisplay">-- 岁</div>
-            <div class="confidence-interval" id="confidenceDisplay">± -- 岁 (基于 MAE 加权)</div>
+            <div class="confidence-interval" id="confidenceDisplay">综合 MAE（加权平均）: -- 岁</div>
+        
+
+        <div class="report-meta" id="reportMeta">
+            <div class="meta-item"><span class="meta-label">性别</span><span id="metaSex">--</span></div>
+            <div class="meta-item"><span class="meta-label">模型策略</span><span id="metaModel">--</span></div>
+            <div class="meta-item" style="grid-column: 1 / -1;"><span class="meta-label">纳入牙位</span><span id="metaTeeth">--</span></div>
+            <div class="meta-item" style="grid-column: 1 / -1;"><span class="meta-label">生成时间</span><span id="metaTime">--</span></div>
         </div>
+</div>
+
+        
+
+        <div id="consistencyAlertContainer"></div>
 
         <h3>可视化展示 (Visualization)</h3>
         <div class="viz-container" id="vizContainer">
@@ -507,7 +623,7 @@
                     <th>牙位</th>
                     <th>使用模型 (Formula)</th>
                     <th>MAE (误差)</th>
-                    <th>权重 (Weight)</th>
+                    <th>权重 (Weight, ×10³)</th>
                     <th>推断年龄</th>
                 </tr>
             </thead>
@@ -516,7 +632,7 @@
         </table>
 
         <div class="btn-group">
-            <button class="btn-secondary" onclick="goToStep(2)">&larr; 修改数据</button>
+            <button class="btn-secondary" onclick="goToStep(2)">&larr; 返回修改</button>
             <button class="btn-primary" onclick="window.print()">打印报告</button>
         </div>
     </div>
@@ -838,9 +954,9 @@
           return;
         }
     
-        // 逆方差权重：1/MAE^2
+        // 权重：以 MAE 的倒数平方作为精度权重（MAE 越小，权重越大）
         const weight = 1 / (mae * mae);
-    
+
         results.push({
           tooth,
           modelType,
@@ -849,156 +965,146 @@
           weight,
           formula: formulaStr
         });
+
+        // 写入“单牙位详细数据 (Details)”表格
+        const weightDisplay = (weight * 1000).toFixed(2);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${tooth}</strong></td>
+          <td>${formulaStr}</td>
+          <td>${mae.toFixed(2)}</td>
+          <td>${weightDisplay} (×10³)</td>
+          <td><strong>${calculatedAge.toFixed(2)}</strong></td>
+        `;
+        resultTableBody.appendChild(tr);
       }
     
       if (results.length === 0) return;
     
-      // 汇总加权平均
+      // 汇总加权平均（年龄：加权均值；误差：MAE 的加权均值）
       let sumWeightedAge = 0;
+      let sumWeightedMAE = 0;
       let sumWeights = 0;
       for (const r of results) {
         sumWeightedAge += r.age * r.weight;
+        sumWeightedMAE += r.mae * r.weight;
         sumWeights += r.weight;
       }
-    
+
       const finalAge = sumWeightedAge / sumWeights;
-      const combinedError = Math.sqrt(1 / sumWeights);
-    
-      renderResults(finalAge, combinedError, results);
+      const combinedError = sumWeightedMAE / sumWeights;
+renderResults(finalAge, combinedError, results);
       goToStep(3);
     }
     
 
     function renderResults(finalAge, combinedError, results) {
-        // 1. 显示大字结果
-        document.getElementById('finalAgeDisplay').textContent = `${finalAge.toFixed(2)} 岁`;
-        document.getElementById('confidenceDisplay').textContent = `± ${combinedError.toFixed(2)} 岁 (Combined Standard Error)`;
-
-        // 2. 填充表格
-        const tbody = document.querySelector('#resultTable tbody');
-        results.forEach(r => {
-            const row = `
-                <tr>
-                    <td><strong>${r.tooth}</strong></td>
-                    <td style="font-family:monospace; font-size:12px; color:#555;">${r.formula}</td>
-                    <td>${r.mae}</td>
-                    <td>${(r.weight * 1000).toFixed(2)} <small>(x10⁻³)</small></td>
-                    <td><strong>${r.age.toFixed(2)}</strong></td>
-                </tr>
-            `;
-            tbody.insertAdjacentHTML('beforeend', row);
-        });
-
-// ----------------- 修改后的可视化渲染逻辑 -----------------
-        const vizContainer = document.getElementById('vizContainer');
-        vizContainer.innerHTML = ''; // 清除旧内容
-
-        // 1. 确定 X 轴范围 (Range)
-        // 获取所有年龄点（单牙位 + 最终结果）
-        const allAges = results.map(r => r.age);
-        allAges.push(finalAge);
-        
-        // 动态计算边界：取最小值的向下取整 - 5岁，最大值的向上取整 + 5岁
-        // 这样图表看起来不会太拥挤
-        const minAge = Math.floor(Math.min(...allAges)) - 5;
-        const maxAge = Math.ceil(Math.max(...allAges)) + 5;
-        const totalRange = maxAge - minAge;
-
-        // 2. 绘制轴线 (背景)
-        const axisLine = document.createElement('div');
-        axisLine.className = 'viz-axis-line';
-        vizContainer.appendChild(axisLine);
-
-        // 3. 绘制刻度 (起始，中间，结束)
-        const steps = [0, 0.5, 1]; // 0%, 50%, 100%
-        steps.forEach(p => {
-            const labelAge = minAge + (totalRange * p);
-            const labelEl = document.createElement('div');
-            labelEl.className = 'viz-axis-label';
-            // 注意：left 是相对于 vizContainer 的 padding-box 计算的
-            // 我们在 CSS 里设置了左右 padding 40px，所以百分比计算要基于内容区
-            // 这里为了简单，直接用 style.left 控制位置，基于 container 宽度
-            // 40px 是 padding-left
-            labelEl.style.left = `calc(40px + (100% - 80px) * ${p})`;
-            labelEl.textContent = labelAge.toFixed(0);
-            vizContainer.appendChild(labelEl);
-        });
-
-        // 4. 绘制单牙位散点 (灰色)
-        results.forEach(r => {
-            // 计算相对位置 (0~1)
-            const pct = (r.age - minAge) / totalRange;
-            const point = document.createElement('div');
-            point.className = 'viz-tooth-point';
-            point.style.left = `calc(40px + (100% - 80px) * ${pct})`;
-            
-            // 内部 Tooltip
-            point.innerHTML = `<div class="viz-tooltip">${r.tooth}: ${r.age.toFixed(1)}岁</div>`;
-            vizContainer.appendChild(point);
-        });
-
-        // 5. 绘制最终结果 (绿色中心点 + 误差条)
-        // 误差宽度计算
-        // 误差范围是从 age - error 到 age + error，总跨度是 2 * error
-        const finalPct = (finalAge - minAge) / totalRange;
-        const errorWidthPct = (combinedError * 2) / totalRange; // 误差条占总长度的百分比
-        
-        const groupHtml = `
-            <div class="viz-final-group" style="left: calc(40px + (100% - 80px) * ${finalPct});">
-                
-                <div class="viz-error-bar" style="width: calc(100% * ${totalRange} / ${combinedError * 2} * ${errorWidthPct} * ${vizContainer.offsetWidth - 80}px / 100);"></div>
-                </div>
-        `;
-        // 修正：上面的 HTML 字符串拼接计算太麻烦，用 DOM 操作更清晰
-        
-        const finalGroup = document.createElement('div');
-        finalGroup.className = 'viz-final-group';
-        finalGroup.style.left = `calc(40px + (100% - 80px) * ${finalPct})`;
-
-        // (A) 误差条 (横向)
-        // 宽度计算：我们需要将 age 对应的百分比作为中心，向左向右延伸 combinedError 的距离
-        // 这里 trick 一下：直接在 group 里面画一个定宽的 div 比较难，不如直接算 px 或者 relative width
-        // 最简单的方法：误差条单独算 left 和 width，不放在 group 里，或者 group 宽度设为误差宽度
-        
-        // 重新设计：让 Group 宽度 = 误差覆盖的宽度
-        // 此时 Group 的 left 应该是 (Age - Error) 的位置
-        const startAge = finalAge - combinedError;
-        const startPct = (startAge - minAge) / totalRange;
-        const widthPct = ((combinedError * 2) / totalRange);
-
-        // 误差条容器 (用于显示绿色背景)
-        const errorBar = document.createElement('div');
-        errorBar.className = 'viz-error-bar';
-        // 它的位置和宽度相对于整个轴
-        errorBar.style.left = `calc(40px + (100% - 80px) * ${startPct})`;
-        errorBar.style.width = `calc((100% - 80px) * ${widthPct})`;
-        vizContainer.appendChild(errorBar);
-
-        // 左边界线
-        const borderL = document.createElement('div');
-        borderL.className = 'viz-error-boundary';
-        borderL.style.left = `calc(40px + (100% - 80px) * ${startPct})`;
-        vizContainer.appendChild(borderL);
-
-        // 右边界线
-        const endAge = finalAge + combinedError;
-        const endPct = (endAge - minAge) / totalRange;
-        const borderR = document.createElement('div');
-        borderR.className = 'viz-error-boundary';
-        borderR.style.left = `calc(40px + (100% - 80px) * ${endPct})`;
-        vizContainer.appendChild(borderR);
-
-        // (B) 中心点和标签 (使用 Group 定位在中心)
-        const centerGroup = document.createElement('div');
-        centerGroup.className = 'viz-final-group';
-        centerGroup.style.left = `calc(40px + (100% - 80px) * ${finalPct})`;
-        
-        centerGroup.innerHTML = `
-            <div class="viz-main-point"></div>
-            <div class="viz-main-label">${finalAge.toFixed(1)} 岁</div>
-        `;
-        vizContainer.appendChild(centerGroup);
+    // ===================== 1) 一致性警报 (可选显示) =====================
+    let hasInconsistency = false;
+    for (let i = 0; i < results.length; i++) {
+        for (let j = i + 1; j < results.length; j++) {
+            const diff = Math.abs(results[i].age - results[j].age);
+            const threshold = results[i].mae + results[j].mae;
+            if (diff > threshold) {
+                hasInconsistency = true;
+                break;
+            }
+        }
+        if (hasInconsistency) break;
     }
+
+    const warningHTML = hasInconsistency
+        ? `
+        <div style="background: #fff3cd; border: 1px solid #ffeeba; padding: 15px; border-radius: 8px; margin-bottom: 25px;">
+            <strong style="color: #856404;">一致性警报 (Consistency Alert)</strong><br>
+            任意两颗牙的预测差值已超过其 MAE 之和。建议：增加牙位、复核测量、排除龋变或修复影响。
+        </div>
+        `
+        : '';
+
+    const warningContainer = document.getElementById('consistencyAlertContainer');
+    if (warningContainer) warningContainer.innerHTML = warningHTML;
+
+    // ===================== 2) 更新 Step 3 的“摘要区” =====================
+    const ageEl = document.getElementById('finalAgeDisplay');
+    if (ageEl) ageEl.textContent = `${finalAge.toFixed(2)} 岁`;
+
+    const ciEl = document.getElementById('confidenceDisplay');
+    if (ciEl) ciEl.textContent = `综合 MAE（加权平均）: ${combinedError.toFixed(2)} 岁`;
+
+    
+
+    // ===================== 2b) 更新报告信息（性别 / 模型策略 / 纳入牙位 / 时间） =====================
+    const sexVal = document.getElementById('sexSelect')?.value || '--';
+    const modelVal = document.getElementById('modelSelect')?.value || '--';
+
+    const sexLabel = (sexVal === 'male') ? '男性 (Male)' : (sexVal === 'female') ? '女性 (Female)' : sexVal;
+    const modelLabelMap = {
+        auto: '自动选择最佳模型 (Auto)',
+        linear: '传统线性回归 (Linear Regression)',
+        rf: '随机森林 (Random Forest)',
+        xgb: 'XGBoost (Gradient Boosting)'
+    };
+    const modelLabel = modelLabelMap[modelVal] || modelVal;
+
+    const teethList = results.map(r => r.tooth).join('，');
+
+    const metaSex = document.getElementById('metaSex');
+    const metaModel = document.getElementById('metaModel');
+    const metaTeeth = document.getElementById('metaTeeth');
+    const metaTime = document.getElementById('metaTime');
+
+    if (metaSex) metaSex.textContent = sexLabel;
+    if (metaModel) metaModel.textContent = modelLabel;
+    if (metaTeeth) metaTeeth.textContent = teethList;
+    if (metaTime) metaTime.textContent = new Date().toLocaleString();
+// ===================== 3) 更新 Step 3 的“可视化区” =====================
+    const viz = document.getElementById('vizContainer');
+    if (viz) {
+        // 显示范围：最终值 ±15 岁（总跨度 30），避免点太挤
+        const rangeSpan = 30;
+        const minAge = finalAge - rangeSpan / 2;
+        const maxAge = finalAge + rangeSpan / 2;
+
+        const toPct = (val) => {
+            const pct = ((val - minAge) / rangeSpan) * 100;
+            return Math.max(0, Math.min(100, pct));
+        };
+
+        const centerPct = 50;
+        const errorWidthPct = Math.max(0, Math.min(50, (combinedError / rangeSpan) * 100));
+
+        const pointsHTML = results.map(r => {
+            const pct = toPct(r.age);
+            return `
+                <div class="viz-tooth-point" style="left:${pct}%;">
+                    <div class="viz-tooltip">${r.tooth}: ${r.age.toFixed(2)} ± ${r.mae.toFixed(2)}</div>
+                </div>
+            `;
+        }).join('');
+
+        viz.innerHTML = `
+            <div class="viz-axis-line"></div>
+
+            <div class="viz-axis-label" style="left:0%;">${minAge.toFixed(0)}</div>
+            <div class="viz-axis-label" style="left:50%;">${finalAge.toFixed(0)}</div>
+            <div class="viz-axis-label" style="left:100%;">${maxAge.toFixed(0)}</div>
+
+            ${pointsHTML}
+
+            <div class="viz-error-bar" style="
+                left:${centerPct - errorWidthPct}%;
+                width:${errorWidthPct * 2}%;
+            "></div>
+            <div class="viz-error-boundary" style="left:${centerPct - errorWidthPct}%;"></div>
+            <div class="viz-error-boundary" style="left:${centerPct + errorWidthPct}%;"></div>
+
+            <div class="viz-main-point" style="left:${centerPct}%;"></div>
+            <div class="viz-main-label">${finalAge.toFixed(2)} ± ${combinedError.toFixed(2)}</div>
+        `;
+    }
+}
+
 </script>
 
 </body>
