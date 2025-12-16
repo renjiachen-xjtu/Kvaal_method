@@ -496,6 +496,11 @@
             .viz-error-boundary {
                 border-left: 2px solid #27ae60 !important; /* 加粗边界线 */
             }
+
+            /* 打印时去掉阴影，避免出现灰色方块伪影 */
+            .viz-main-point, .viz-main-label {
+                box-shadow: none !important;
+            }
         }
 
         /* 默认隐藏打印头 */
@@ -620,11 +625,11 @@
         <table class="param-table" id="resultTable">
             <thead>
                 <tr>
-                    <th>牙位</th>
+                    <th>牙位（Tooth Position）</th>
                     <th>使用模型 (Formula)</th>
                     <th>MAE (误差)</th>
-                    <th>权重 (Weight, ×10³)</th>
-                    <th>推断年龄</th>
+                    <th>权重 (Weight)</th>
+                    <th>推断年龄（Age Estimation）</th>
                 </tr>
             </thead>
             <tbody>
@@ -810,6 +815,14 @@
       return best;
     }
 
+    // 模型名称（用于结果表展示，不显示文件名/路径）
+    function getModelDisplayName(modelType) {
+      if (modelType === "rf") return "随机森林（Random Forest）";
+      if (modelType === "xgb") return "极端梯度提升（Extreme Gradient Boosting）";
+      if (modelType === "linear") return "线性回归方程（Linear regression equation）";
+      return modelType;
+    }
+
 
     // 初始化：添加第一张卡片
     document.addEventListener('DOMContentLoaded', () => {
@@ -936,19 +949,19 @@
           const m = toothCfg.linear;
           mae = m.mae;
           calculatedAge = m.intercept;
-          formulaStr = `${m.intercept}`;
+          formulaStr = getModelDisplayName(modelType);
     
           // 按 coef 动态计算
           for (const [key, coef] of Object.entries(m.coef)) {
             const val = (vars[key] != null) ? vars[key] : 0;
             calculatedAge += coef * val;
-            formulaStr += ` ${coef >= 0 ? '+' : ''}${coef}*${key}`;
+            
           }
         } else if (modelType === "rf" || modelType === "xgb") {
           mae = toothCfg[modelType].mae;
           calculatedAge = await predictWithOnnx(sex, tooth, modelType, features);
           if (calculatedAge == null) return; // ONNX 失败就直接退出
-          formulaStr = `ONNX_${modelType}_${tooth.replace('/', '_')}.onnx`;
+          formulaStr = getModelDisplayName(modelType);
         } else {
           alert(`未知 modelType：${modelType}`);
           return;
@@ -1086,9 +1099,7 @@ renderResults(finalAge, combinedError, results);
         viz.innerHTML = `
             <div class="viz-axis-line"></div>
 
-            <div class="viz-axis-label" style="left:0%;">${minAge.toFixed(0)}</div>
             <div class="viz-axis-label" style="left:50%;">${finalAge.toFixed(0)}</div>
-            <div class="viz-axis-label" style="left:100%;">${maxAge.toFixed(0)}</div>
 
             ${pointsHTML}
 
